@@ -1,0 +1,165 @@
+#!/usr/bin/env ruby
+
+require 'socket'
+require 'json'
+require 'rest-client'
+
+# Set the proxy.
+
+#RestClient.proxy = 'http://localhost:3128'
+RestClient.proxy = 'http://sausages.cache.ed.ac.uk:3128'
+
+# Location of PMP.
+
+pmp_api_host = 'passwords.is.ed.ac.uk'
+pmp_api_port = 443
+pmp_api_base = 'restapi/json/v1'
+pmp_api_uri = "https://#{pmp_api_host}:#{pmp_api_port}/#{pmp_api_base}"
+
+# Change this to 'false' to turn off SSL verification.
+
+verify_ssl = true
+
+# Check that the auth token is set.
+
+unless ENV.has_key?('PMP_API_AUTHTOKEN')
+  STDERR.puts 'Error: PMP_API_AUTHTOKEN environment variable not set.'
+  exit(false)
+end
+
+# Check that a username / hostname combination has been specified.
+
+unless ARGV.length > 0
+  STDERR.puts 'Error: Specify hostname or user@hostname as an argument.'
+  exit(false)
+end
+
+# Set the default username to isapps and extract the specified username and
+# hostname.
+
+username = 'isapps'
+
+if /([^@]+)@(.*)/.match(ARGV[0])
+  username = $1
+  hostname = $2
+else
+  hostname = ARGV[0]
+end
+
+# Look up the IDs of the hostname and username.
+
+id_response = RestClient::Resource.new("#{pmp_api_uri}/resources/getResourceIdAccountId",
+                                       :verify_ssl => verify_ssl).get(
+                                         headers = {
+                                           AUTHTOKEN: ENV['PMP_API_AUTHTOKEN'],
+                                           params: {
+                                             RESOURCENAME: hostname,
+                                             ACCOUNTNAME:  username,
+                                           }
+                                         }
+                                       )
+
+unless id_response.code == 200
+  STDERR.puts "Error: Server error fetching IDs of hostname and username (#{id_response.code})"
+  exit(false)
+end
+
+id_json = JSON.parse(id_response.body)
+
+if id_json['operation']['result']['status'] == 'Success'
+
+  $hostname_id = id_json['operation']['Details']['RESOURCEID']
+  $username_id = id_json['operation']['Details']['ACCOUNTID']
+
+else
+
+  # If an exact match of the hostname wasn't found, see if a fuzzy search can
+  # find an appropriate resource.
+
+  host = ''
+  tier = ''
+
+  if hostname.match(/((?:[a-z\d]+\-?)+?)(kb|at)/)
+    host = $1
+  end
+
+  if hostname.match(/((kb|at)\d*)?\-?([a-z]+)$/)
+    tier = $3
+  end
+
+  search_response = RestClient::Resource.new("#{pmp_api_uri}/resources", :verify_ssl => verify_ssl).get(
+    headers = { AUTHTOKEN: ENV['PMP_API_AUTHTOKEN'] }
+  )
+
+  unless search_response.code == 200
+    STDERR.puts "Error: Server error searching for available resources (#{search_response.code})"
+    exit(false)
+  end
+
+  search_json = JSON.parse(search_response.body)
+
+  unless search_json['operation']['result']['status'] == 'Success'
+    STDERR.puts "Error: Server rejected search for available resources (#{search_json['operation']['result']['message']})"
+    exit(false)
+  end
+
+  search_json['operation']['Details'].each do |item|
+
+    if item['RESOURCE NAME'].match(/#{host}.*?(kb|at)?.*?#{tier}.*?$/)
+
+      fuzzy_response = RestClient::Resource.new("#{pmp_api_uri}/resources/getResourceIdAccountId",
+                                                :verify_ssl => verify_ssl).get(
+                                                  headers = {
+                                                    AUTHTOKEN: ENV['PMP_API_AUTHTOKEN'],
+                                                    params: {
+                                                      RESOURCENAME: item['RESOURCE NAME'],
+                                                      ACCOUNTNAME:  username
+                                                    }
+                                                  }
+                                                )
+
+      unless fuzzy_response.code == 200
+        STDERR.puts "Error: Server error fetching IDs of fuzzy searched hostname and username (#{id_response.code})"
+        exit(false)
+      end
+
+      fuzzy_json = JSON.parse(fuzzy_response.body)
+
+      unless fuzzy_json['operation']['result']['status'] == 'Success'
+        STDERR.puts "Error: Server rejected fetching IDs of fuzzy searched hostname and username (#{id_json['operation']['result']['message']})"
+        exit(false)
+      end
+
+      $hostname_id = fuzzy_json['operation']['Details']['RESOURCEID']
+      $username_id = fuzzy_json['operation']['Details']['ACCOUNTID']
+
+      break
+
+    end
+
+  end
+
+end
+
+# Look up the password.
+
+pass_response = RestClient::Resource.new("#{pmp_api_uri}/resources/#{$hostname_id}/accounts/#{$username_id}/password", :verify_ssl => verify_ssl).get(
+  headers = { AUTHTOKEN: ENV['PMP_API_AUTHTOKEN'] }
+)
+
+unless pass_response.code == 200
+  STDERR.puts "Error: Server error fetching password (#{pass_response.code})"
+  exit(false)
+end
+
+pass_json = JSON.parse(pass_response.body)
+
+unless pass_json['operation']['result']['status'] == 'Success'
+  STDERR.puts "Error: Server rejected fetching password (#{pass_json['operation']['result']['message']})"
+  exit(false)
+end
+
+password = pass_json['operation']['Details']['PASSWORD']
+
+puts password
+exit(true)

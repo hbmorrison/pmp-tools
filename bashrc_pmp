@@ -1,0 +1,49 @@
+# Ensure $HOME/.local/bin appears at the start of the PATH environment variable.
+
+REMOVED=$(/bin/echo ":${PATH}" | /bin/sed "s#:${HOME}/.local/bin##")
+PATH="${HOME}/.local/bin:${REMOVED/#:}"
+
+# Location of the system32 directory on Windows.
+
+SYSTEM_DIR="/mnt/c/Windows/System32"
+
+# Perform a password lookup and put the result into the clipboard.
+
+function pmp {
+  if [ -r "${HOME}/.pmp_api_auth_token" ]
+  then
+    local token=`cat "${HOME}/.pmp_api_auth_token" 2>/dev/null`
+    if [ "$1" = "" -a "${PMP_LASTHOST}" != "" ]
+    then
+      PMP_API_AUTHTOKEN="${token}" pmp_lookup "${PMP_LASTHOST}" | $SYSTEM_DIR/clip.exe
+    else
+      PMP_API_AUTHTOKEN="${token}" pmp_lookup "${1}" | $SYSTEM_DIR/clip.exe
+    fi
+    if [ "$(jobs -s)" != "" ]
+    then
+      fg
+    fi
+  else
+    echo "Error: PMP API auth token not found"
+  fi
+}
+
+# Perform a password lookup before running ssh.
+
+function ssh {
+  if [ -r "${HOME}/.pmp_api_auth_token" ]
+  then
+    local token=`cat "${HOME}/.pmp_api_auth_token" 2>/dev/null`
+    if echo "${1}" | grep '\.'
+    then
+      local userhost=$1
+    else
+      local userhost="${1}.is.ed.ac.uk"
+    fi
+    PMP_API_AUTHTOKEN="${token}" pmp_lookup $1 2>/dev/null | $SYSTEM_DIR/clip.exe
+    PMP_LASTHOST=$1
+    /usr/local/ssh $userhost
+  else
+    echo "Error: PMP API auth token not found"
+  fi
+}
