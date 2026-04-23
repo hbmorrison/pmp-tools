@@ -42,7 +42,7 @@ function ssh {
     fi
     PMP_API_AUTHTOKEN="${token}" pmp_lookup $1 2>/dev/null | $SYSTEM_DIR/clip.exe
     PMP_LASTHOST=$1
-    /usr/local/ssh $userhost
+    /usr/bin/ssh $userhost
   else
     echo "Error: PMP API auth token not found"
   fi
