@@ -34,14 +34,17 @@ function ssh {
   if [ -r "${HOME}/.pmp_api_auth_token" ]
   then
     local token=`cat "${HOME}/.pmp_api_auth_token" 2>/dev/null`
-    if echo "${1}" | grep '\.'
+    if echo "${1}" | grep -q '\.'
     then
       local userhost=$1
     else
       local userhost="${1}.is.ed.ac.uk"
     fi
-    PMP_API_AUTHTOKEN="${token}" pmp_lookup $1 2>/dev/null | $SYSTEM_DIR/clip.exe
-    PMP_LASTHOST=$1
+    if echo "${userhost}" | grep -q 'ed\.ac\.uk$'
+    then
+      PMP_API_AUTHTOKEN="${token}" pmp_lookup $1 2>/dev/null | $SYSTEM_DIR/clip.exe
+      PMP_LASTHOST=$1
+    fi
     /usr/bin/ssh $userhost
   else
     echo "Error: PMP API auth token not found"
