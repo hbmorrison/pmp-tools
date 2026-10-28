@@ -51,19 +51,13 @@ else
   sudo -n /bin/true 2>/dev/null && pass || fail "no sudo access"
 fi
 
-# Update bashrc and ssh config if asked.
+# Check whether the bash script is being sourced from the .bashrc file.
 
-case ${1} in
-  append)
-
-    # Check whether the bash script is being sourced from the .bashrc file.
-
-    if ! grep -q 'source.*\.bashrc_pmp' ~/.bashrc
-    then
-      echo -n "Adding section to source .bashrc_pmm into .bashrc... "
-      cat $BASE_DIR/etc/bashrc_section >> ~/.bashrc && pass || fail
-    fi
-esac
+if ! grep -q 'source.*\.bashrc_pmp' ~/.bashrc
+then
+  echo -n "Adding section to source .bashrc_pmp into .bashrc... "
+  cat $BASE_DIR/etc/bashrc_section >> ~/.bashrc && pass || fail
+fi
 
 # Work out how to install required packages.
 
@@ -150,7 +144,6 @@ do
 
     etc) ;;
     etc/*) ;;
-
 
     # Create other directories under the home directory.
 

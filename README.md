@@ -11,24 +11,15 @@ the following packages to be installed:
 - `ruby`
 - `ruby-ffi`
 - `ruby-json`
-  `ruby-rest-client`
+- `ruby-rest-client`
 
 ## Configuration
 
 ### Shell configuration
 
-The `setup.sh` script will install the prerequisites and copy some configuration
-files into your home directory.
-
-If you run:
-
-```shell
-$ ./setup.sh append
-```
-
-The script will also append the required sections to your shell configuration
-files. Otherwise, run `setup.sh` with no arguments then edit your `.bashrc` file
-and append the following:
+The `setup.sh` script will install the required packages and copy some
+configuration files into your home directory. The script will also append a
+`source` command to your `.bashrc` file:
 
 ```shell
 if [ -r "${HOME}/.bashrc_pmp" ]
